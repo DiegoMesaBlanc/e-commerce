@@ -1,0 +1,16 @@
+{
+  "name": "@examen-ecommerce/backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'TODO: implement dev server'",
+    "build": "tsc",
+    "test": "echo 'TODO: implement tests'"
+  },
+  "dependencies": {
+    "@examen-ecommerce/shared": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}
