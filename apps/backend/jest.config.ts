@@ -11,11 +11,10 @@ const config: Config = {
     '^.+\\.tsx?$': 'ts-jest',
   },
   collectCoverageFrom: [
-    'src/domain/**/*.ts',
-    '!src/domain/**/__tests__/**',
-    '!src/domain/**/*.spec.ts',
-    '!src/domain/**/*.test.ts',
-    '!src/domain/strategies/IDiscountStrategy.ts',
+    'src/**/*.ts',
+    '!src/**/__tests__/**',
+    '!src/**/*.spec.ts',
+    '!src/**/*.test.ts',
   ],
   coverageThreshold: {
     global: {
