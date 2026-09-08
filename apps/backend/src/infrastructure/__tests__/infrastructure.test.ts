@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
 import { Category, OrderStatus, type Product } from '@examen-ecommerce/shared';
 import type { Order } from '../../domain/entities/order';
-import { DEFAULT_MONGODB_URI, connectToDatabase, disconnectFromDatabase } from '../database/connection';
+import { connectToDatabase, disconnectFromDatabase } from '../database/connection';
+import { config } from '../../config';
 import { seedDatabase, SEED_PRODUCTS } from '../database/seed';
 import { MongooseOrderRepository } from '../repositories/order.repository';
 import { MongooseProductRepository } from '../repositories/product.repository';
@@ -43,7 +44,7 @@ describe('database connection', () => {
 
   it('connects using the default URI when none is provided', async () => {
     await connectToDatabase();
-    expect(mockedConnect).toHaveBeenCalledWith(DEFAULT_MONGODB_URI);
+    expect(mockedConnect).toHaveBeenCalledWith(config.database.mongodbUri);
   });
 
   it('connects using a custom URI', async () => {

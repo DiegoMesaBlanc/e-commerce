@@ -1,10 +1,7 @@
 import mongoose from 'mongoose';
+import { config } from '../../config';
 
-export const DEFAULT_MONGODB_URI = 'mongodb://localhost:27017/ecommerce';
-
-export async function connectToDatabase(
-  uri: string = process.env.MONGODB_URI ?? DEFAULT_MONGODB_URI,
-): Promise<void> {
+export async function connectToDatabase(uri: string = config.database.mongodbUri): Promise<void> {
   await mongoose.connect(uri);
 }
 

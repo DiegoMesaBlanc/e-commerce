@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { OrderStatus, type CartItem, type CheckoutRequestDTO, type CheckoutResponseDTO, type Product } from '@examen-ecommerce/shared';
 import type { DiscountEngine } from '../../domain/services/DiscountEngine';
 import { DiscountEngineFactory } from '../../domain/factory/DiscountEngineFactory';
-import { WELCOME2026_COUPON } from '../../domain/strategies/IDiscountStrategy';
+import { config } from '../../config';
 import { EmptyCartError, InsufficientStockError, InvalidCartItemError, InvalidCouponError, ProductNotFoundError } from '../errors';
 import type { OrderRepository } from '../../infrastructure/repositories/order.repository';
 import type { ProductRepository } from '../../infrastructure/repositories/product.repository';
@@ -17,7 +17,7 @@ export class CheckoutService {
   constructor(
     private readonly productRepository: ProductRepository,
     private readonly orderRepository: OrderRepository,
-    private readonly discountEngine: DiscountEngine = DiscountEngineFactory.create(),
+    private readonly discountEngine: DiscountEngine = DiscountEngineFactory.create(config.discounts),
   ) {}
 
   async execute(dto: CheckoutRequestDTO): Promise<CheckoutResponseDTO> {
@@ -25,7 +25,7 @@ export class CheckoutService {
       throw new EmptyCartError();
     }
 
-    if (dto.couponCode !== undefined && dto.couponCode !== WELCOME2026_COUPON) {
+    if (dto.couponCode !== undefined && dto.couponCode !== config.discounts.couponCode) {
       throw new InvalidCouponError(dto.couponCode);
     }
 
