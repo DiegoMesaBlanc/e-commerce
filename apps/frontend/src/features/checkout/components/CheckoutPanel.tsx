@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import { useAppDispatch, useAppSelector } from '../../../app/hooks';
 import { formatMoney, formatPercent } from '../../../shared/utils/format';
-import { processCheckout, setCoupon } from '../checkoutSlice';
+import { previewCheckout, processCheckout, setCoupon } from '../checkoutSlice';
 
 interface BreakdownRowProps {
   label: string;
@@ -20,19 +20,38 @@ function BreakdownRow({ label, value }: BreakdownRowProps) {
 export function CheckoutPanel() {
   const dispatch = useAppDispatch();
   const items = useAppSelector((state) => state.cart.items);
-  const { appliedCoupon, breakdown, status, error, orderConfirmation } = useAppSelector((state) => state.checkout);
+  const { appliedCoupon, breakdown, status, error, orderConfirmation, preview, previewStatus } = useAppSelector(
+    (state) => state.checkout,
+  );
   const [couponInput, setCouponInput] = useState('');
 
   const hasItems = items.length > 0;
   const isLoading = status === 'loading';
 
+  useEffect(() => {
+    if (hasItems && appliedCoupon) {
+      void dispatch(previewCheckout({ cartItems: items, couponCode: appliedCoupon }));
+    }
+  }, [items, appliedCoupon, hasItems, dispatch]);
+
   const handleApplyCoupon = () => {
     dispatch(setCoupon(couponInput.trim()));
   };
 
-  const handleCheckout = () => {
-    void dispatch(processCheckout({ cartItems: items, couponCode: appliedCoupon ?? undefined }));
+  const handleCouponChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setCouponInput(event.target.value);
+    if (appliedCoupon) {
+      dispatch(setCoupon(''));
+    }
   };
+
+  const handleCheckout = () => {
+    const couponCode = couponInput.trim() || undefined;
+    void dispatch(processCheckout({ cartItems: items, couponCode }));
+  };
+
+  const summary = orderConfirmation ?? preview;
+  const showBreakdown = summary !== null && breakdown !== null;
 
   return (
     <section className="rounded-xl bg-white p-6 shadow-sm">
@@ -46,14 +65,15 @@ export function CheckoutPanel() {
           <input
             id="coupon"
             value={couponInput}
-            onChange={(event) => setCouponInput(event.target.value)}
+            onChange={handleCouponChange}
             placeholder="Ej: WELCOME2026"
             className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
           />
           <button
             type="button"
             onClick={handleApplyCoupon}
-            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-700"
+            disabled={previewStatus === 'loading'}
+            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:bg-gray-400"
           >
             Aplicar Cupón
           </button>
@@ -61,6 +81,11 @@ export function CheckoutPanel() {
         {appliedCoupon && (
           <p data-testid="applied-coupon" className="mt-2 text-sm text-emerald-700">
             Cupón aplicado: <span className="font-semibold">{appliedCoupon}</span>
+          </p>
+        )}
+        {previewStatus === 'loading' && (
+          <p data-testid="preview-loading" className="mt-2 text-xs text-gray-500">
+            Calculando descuento…
           </p>
         )}
       </div>
@@ -81,16 +106,23 @@ export function CheckoutPanel() {
         </p>
       )}
 
-      {orderConfirmation && breakdown && (
-        <dl data-testid="checkout-breakdown" className="mt-5 border-t border-gray-100 pt-4">
-          <BreakdownRow label="Subtotal Original" value={formatMoney(orderConfirmation.originalSubtotal)} />
-          <BreakdownRow label="Descuento de Categoría" value={`-${formatMoney(breakdown.categoryDiscount)}`} />
-          <BreakdownRow label="Descuento por Volumen" value={`-${formatMoney(breakdown.volumeDiscount)}`} />
-          <BreakdownRow label="Descuento por Cupón" value={`-${formatMoney(breakdown.couponDiscount)}`} />
-          <BreakdownRow label="Porcentaje Efectivo Aplicado" value={formatPercent(breakdown.effectivePercentage)} />
-          <BreakdownRow label="Total de Ahorro" value={`-${formatMoney(breakdown.totalSavings)}`} />
-          <BreakdownRow label="Valor Final a Pagar" value={formatMoney(orderConfirmation.finalTotal)} />
-        </dl>
+      {showBreakdown && summary && breakdown && (
+        <>
+          {!orderConfirmation && (
+            <p data-testid="preview-note" className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-400">
+              Vista previa del descuento
+            </p>
+          )}
+          <dl data-testid="checkout-breakdown" className="mt-2 border-t border-gray-100 pt-4">
+            <BreakdownRow label="Subtotal Original" value={formatMoney(summary.originalSubtotal)} />
+            <BreakdownRow label="Descuento de Categoría" value={`-${formatMoney(breakdown.categoryDiscount)}`} />
+            <BreakdownRow label="Descuento por Volumen" value={`-${formatMoney(breakdown.volumeDiscount)}`} />
+            <BreakdownRow label="Descuento por Cupón" value={`-${formatMoney(breakdown.couponDiscount)}`} />
+            <BreakdownRow label="Porcentaje Efectivo Aplicado" value={formatPercent(breakdown.effectivePercentage)} />
+            <BreakdownRow label="Total de Ahorro" value={`-${formatMoney(breakdown.totalSavings)}`} />
+            <BreakdownRow label="Valor Final a Pagar" value={formatMoney(summary.finalTotal)} />
+          </dl>
+        </>
       )}
     </section>
   );

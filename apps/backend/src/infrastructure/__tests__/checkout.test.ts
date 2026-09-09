@@ -1,5 +1,10 @@
 import request from 'supertest';
-import { Category, type CheckoutResponseDTO, type Product } from '@examen-ecommerce/shared';
+import {
+  Category,
+  type CheckoutPreviewResponseDTO,
+  type CheckoutResponseDTO,
+  type Product,
+} from '@examen-ecommerce/shared';
 import type { Order } from '../../domain/entities/order';
 import { createApp } from '../http/app';
 import type { OrderRepository } from '../repositories/order.repository';
@@ -212,5 +217,56 @@ describe('REST API', () => {
     const response = await request(app).get('/api/nonexistent').expect(404);
 
     expect(response.body.error).toContain('was not found');
+  });
+
+  describe('POST /api/checkout/preview', () => {
+    it('calculates the breakdown without persisting the order or decrementing stock', async () => {
+      const { app, productRepository, orderRepository } = buildApp();
+      const response = await request(app)
+        .post('/api/checkout/preview')
+        .send({
+          cartItems: [{ productId: LAPTOP.id, quantity: 1 }, { productId: SMARTPHONE.id, quantity: 1 }],
+          couponCode: 'WELCOME2026',
+        })
+        .expect(200);
+
+      const body = response.body as CheckoutPreviewResponseDTO;
+      expect('orderId' in body).toBe(false);
+      expect(body.originalSubtotal).toBe(2000);
+      expect(body.discountBreakdown.categoryDiscount).toBe(200);
+      expect(body.discountBreakdown.volumeDiscount).toBe(90);
+      expect(body.discountBreakdown.couponDiscount).toBe(256.5);
+      expect(body.discountBreakdown.effectivePercentage).toBe(27.33);
+      expect(body.finalTotal).toBe(1453.5);
+      expect(orderRepository.orders).toHaveLength(0);
+      expect(await productRepository.findByIds([LAPTOP.id, SMARTPHONE.id])).toEqual([LAPTOP, SMARTPHONE]);
+    });
+
+    it('rejects an invalid coupon with 400', async () => {
+      const { app } = buildApp();
+      const response = await request(app)
+        .post('/api/checkout/preview')
+        .send({ cartItems: [{ productId: LAPTOP.id, quantity: 1 }], couponCode: 'NOT_VALID' })
+        .expect(400);
+
+      expect(response.body).toEqual({ error: 'Invalid coupon code "NOT_VALID".' });
+    });
+
+    it('rejects an empty cart with 400', async () => {
+      const { app } = buildApp();
+      const response = await request(app).post('/api/checkout/preview').send({}).expect(400);
+
+      expect(response.body).toEqual({ error: 'The cart is empty.' });
+    });
+
+    it('rejects insufficient stock with 400', async () => {
+      const { app } = buildApp();
+      const response = await request(app)
+        .post('/api/checkout/preview')
+        .send({ cartItems: [{ productId: LAPTOP.id, quantity: 99 }] })
+        .expect(400);
+
+      expect(response.body.error).toContain('Insufficient stock');
+    });
   });
 });

@@ -58,7 +58,7 @@ describe('App', () => {
 
   beforeEach(() => {
     mockedGet.mockReset();
-    mockedGet.mockResolvedValue({ data: [laptop] } as never);
+    mockedGet.mockResolvedValue({ data: { products: [laptop] } } as never);
   });
 
   it('renders the full layout with an empty cart', async () => {

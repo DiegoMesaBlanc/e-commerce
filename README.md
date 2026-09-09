@@ -71,7 +71,7 @@ npm run dev:backend
 npm run dev:frontend
 ```
 
-Endpoints principales del backend: `GET /api/products`, `POST /api/checkout` (con `couponCode` opcional, p. ej. `WELCOME2026`).
+Endpoints principales del backend: `GET /api/products`, `POST /api/checkout/preview` (calcula el desglose **sin** persistir ni descontar stock — el frontend lo usa al presionar "Aplicar"), `POST /api/checkout` (persiste la orden y decrementa stock; con `couponCode` opcional, p. ej. `WELCOME2026`).
 
 ## Pruebas
 

@@ -10,4 +10,10 @@ export class CheckoutController {
     const result = await this.checkoutService.execute(dto);
     res.status(201).json(result);
   }
+
+  async preview(req: Request, res: Response): Promise<void> {
+    const dto = req.body as CheckoutRequestDTO;
+    const result = await this.checkoutService.preview(dto);
+    res.status(200).json(result);
+  }
 }

@@ -38,6 +38,8 @@ export interface CheckoutResponseDTO {
   items: CartItem[];
 }
 
+export type CheckoutPreviewResponseDTO = Omit<CheckoutResponseDTO, 'orderId'>;
+
 export enum OrderStatus {
   PENDING = 'PENDING',
   COMPLETED = 'COMPLETED',

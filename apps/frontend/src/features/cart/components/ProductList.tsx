@@ -7,6 +7,10 @@ import { addToCart } from '../cartSlice';
 
 type LoadStatus = 'loading' | 'success' | 'error';
 
+interface ProductsResponse {
+  products: Product[];
+}
+
 export function ProductList() {
   const dispatch = useAppDispatch();
   const [products, setProducts] = useState<Product[]>([]);
@@ -15,8 +19,8 @@ export function ProductList() {
   const loadProducts = useCallback(async () => {
     setStatus('loading');
     try {
-      const { data } = await api.get<Product[]>('/products');
-      setProducts(data);
+      const { data } = await api.get<ProductsResponse>('/products');
+      setProducts(Array.isArray(data) ? data : data.products);
       setStatus('success');
     } catch {
       setProducts([]);

@@ -1,10 +1,17 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Category, type CartItem, type CheckoutResponseDTO, type Product } from '@examen-ecommerce/shared';
+import {
+  Category,
+  type CartItem,
+  type CheckoutPreviewResponseDTO,
+  type CheckoutResponseDTO,
+  type Product,
+} from '@examen-ecommerce/shared';
 import { api } from '../../../shared/api/axiosClient';
 import {
   checkoutReducer,
   clearCheckout,
+  previewCheckout,
   processCheckout,
   setCoupon,
   type CheckoutState,
@@ -41,12 +48,21 @@ const confirmation: CheckoutResponseDTO = {
   items: [{ product: laptop, quantity: 2 }],
 };
 
+const previewResult: CheckoutPreviewResponseDTO = {
+  originalSubtotal: 3000,
+  discountBreakdown: confirmation.discountBreakdown,
+  finalTotal: 2180.25,
+  items: [{ product: laptop, quantity: 2 }],
+};
+
 const initialState: CheckoutState = {
   appliedCoupon: null,
   breakdown: null,
   status: 'idle',
   error: null,
   orderConfirmation: null,
+  preview: null,
+  previewStatus: 'idle',
 };
 
 function createStore() {
@@ -64,13 +80,21 @@ describe('checkoutReducer', () => {
 
   it('setCoupon stores the coupon and invalidates previous results', () => {
     const applied = checkoutReducer(
-      { ...initialState, orderConfirmation: confirmation, breakdown: confirmation.discountBreakdown },
+      {
+        ...initialState,
+        orderConfirmation: confirmation,
+        breakdown: confirmation.discountBreakdown,
+        preview: previewResult,
+        previewStatus: 'success',
+      },
       setCoupon('WELCOME2026'),
     );
 
     expect(applied.appliedCoupon).toBe('WELCOME2026');
     expect(applied.orderConfirmation).toBeNull();
     expect(applied.breakdown).toBeNull();
+    expect(applied.preview).toBeNull();
+    expect(applied.previewStatus).toBe('idle');
     expect(applied.status).toBe('idle');
     expect(applied.error).toBeNull();
   });
@@ -173,5 +197,53 @@ describe('checkoutReducer', () => {
 
     expect(next.status).toBe('failed');
     expect(next.error).toBe('Checkout failed');
+  });
+
+  it('stores the preview result and its breakdown without an orderId', async () => {
+    const store = createStore();
+    mockedPost.mockResolvedValue({ data: previewResult } as never);
+
+    await store.dispatch(previewCheckout({ cartItems, couponCode: 'WELCOME2026' }));
+
+    const state = store.getState().checkout;
+    expect(state.previewStatus).toBe('success');
+    expect(state.preview).toEqual(previewResult);
+    expect(state.breakdown).toEqual(confirmation.discountBreakdown);
+    expect(state.orderConfirmation).toBeNull();
+    expect(mockedPost).toHaveBeenCalledWith('/checkout/preview', {
+      cartItems: [{ productId: laptop.id, quantity: 2 }],
+      couponCode: 'WELCOME2026',
+    });
+  });
+
+  it('surfaces the preview error and marks the checkout as failed', async () => {
+    const store = createStore();
+    mockedPost.mockRejectedValue({
+      isAxiosError: true,
+      message: 'Request failed with status code 400',
+      response: { data: { error: 'Invalid coupon code "WELCOME2025".' } },
+    });
+
+    await store.dispatch(previewCheckout({ cartItems, couponCode: 'WELCOME2025' }));
+
+    const state = store.getState().checkout;
+    expect(state.previewStatus).toBe('error');
+    expect(state.preview).toBeNull();
+    expect(state.status).toBe('failed');
+    expect(state.error).toBe('Invalid coupon code "WELCOME2025".');
+  });
+
+  it('clears the preview when a checkout completes successfully', async () => {
+    const store = createStore();
+    mockedPost.mockResolvedValue({ data: confirmation } as never);
+    await store.dispatch(previewCheckout({ cartItems, couponCode: 'WELCOME2026' }));
+    expect(store.getState().checkout.preview).not.toBeNull();
+
+    await store.dispatch(processCheckout({ cartItems, couponCode: 'WELCOME2026' }));
+
+    const state = store.getState().checkout;
+    expect(state.status).toBe('succeeded');
+    expect(state.preview).toBeNull();
+    expect(state.orderConfirmation).toEqual(confirmation);
   });
 });

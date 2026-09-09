@@ -51,7 +51,7 @@ describe('ProductList', () => {
   });
 
   it('renders products fetched from the API and adds them to the cart', async () => {
-    mockedGet.mockResolvedValue({ data: [laptop, mug] } as never);
+    mockedGet.mockResolvedValue({ data: { products: [laptop, mug] } } as never);
     const store = renderProductList();
 
     expect(await screen.findByText('Laptop Pro 2024')).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe('ProductList', () => {
   });
 
   it('disables the add button for products without stock', async () => {
-    mockedGet.mockResolvedValue({ data: [mug] } as never);
+    mockedGet.mockResolvedValue({ data: { products: [mug] } } as never);
     renderProductList();
 
     await screen.findByText('Ceramic Coffee Mug');
@@ -79,7 +79,7 @@ describe('ProductList', () => {
 
     expect(await screen.findByText('No se pudieron cargar los productos.')).toBeInTheDocument();
 
-    mockedGet.mockResolvedValueOnce({ data: [laptop] } as never);
+    mockedGet.mockResolvedValueOnce({ data: { products: [laptop] } } as never);
     fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
 
     expect(await screen.findByText('Laptop Pro 2024')).toBeInTheDocument();

@@ -217,19 +217,22 @@ Como la cascada ya aplicó los descuentos, la estrategia **devuelve el excedente
 
 ```
 [ProductList]                       [CartView]             [CheckoutPanel]
- GET /api/products          addToCart/updateQuantity/     setCoupon / processCheckout
+ GET /api/products          addToCart/updateQuantity/     setCoupon / previewCheckout(efecto) / processCheckout
         │                    removeFromCart (slice)            │
         ▼                        ▼                            ▼
- [axiosClient → :3000/api]  [RTK store: cart + checkout]   thunk POST /api/checkout
-                                  │                            ▼
+ [axiosClient → :3000/api]  [RTK store: cart + checkout]   thunk POST /api/checkout/preview  (desglose en "Aplicar")
+                                  │                            │
                                   │                    [DiscountEngine (domain)]
                                   │                    subtotal → cascada → breakdown
                                   ▼                            │
-                         [CartView subtotal               [order repository → OrderModel]
-                          reactivo en tiempo real]
-                                                                │
+                         [CartView subtotal               thunk POST /api/checkout (final)
+                          reactivo en tiempo real]              │
+                                                                ├──→ order repository → OrderModel (persiste)
+                                                                ▼
                         [LimitReachedAlert]  ◄── limitReached || effectivePercentage ≥ 35
 ```
+
+El **preview** (`POST /api/checkout/preview`) reutiliza la misma cadena de validación y el mismo motor (`CheckoutService.preview` → `buildCart`), **sin** persistir ni decrementar stock; devuelve `CheckoutPreviewResponseDTO` (mismos totales, sin `orderId`). Así el frontend cumple la HU 2 mostrando el desglose al presionar "Aplicar" y en tiempo real al cambiar el carrito.
 
 ---
 
@@ -254,8 +257,8 @@ Frontend: `VITE_API_URL` (default `http://localhost:3000/api`).
 
 ## 10. Calidad y verificación
 
-- **Backend:** Jest + Supertest. Cobertura exigida **>80%** global (actual: ~99% líneas en el núcleo, umbrales por archivo verificados en CI). Tests del motor en memoria + tests de API con repositorios Mongoose reales.
-- **Frontend:** Vitest + RTL. Cobertura exigida **>80%** (actual: 100% statements/functions/lines; ~97% branches). Casos clave: cascada de reducers del carrito, thunk `processCheckout` (éxito/error/loading), desglose de 7 filas, alerta del 35% (banner + toast persistente `duration: Infinity`).
+- **Backend:** Jest + Supertest. Cobertura exigida **>80%** global (actual: 98.8% statements / 80% branches / 96.82% functions / 99.16% lines; umbrales por archivo verificados en CI). Tests del motor en memoria + tests de API con repositorios Mongoose reales.
+- **Frontend:** Vitest + RTL. Cobertura exigida **>80%** (actual: 100% statements/functions/lines; 92.03% branches). Casos clave: cascada de reducers del carrito, thunk `processCheckout` (éxito/error/loading), preview `previewCheckout` en tiempo real (desglose + error de cupón), desglose de 7 filas, alerta del 35% (banner + toast persistente `duration: Infinity`).
 - Comandos: `npm run test`, `npm run test:coverage` (raíz → ambas apps).
 
 ---

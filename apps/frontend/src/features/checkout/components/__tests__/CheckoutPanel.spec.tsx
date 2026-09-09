@@ -2,7 +2,12 @@ import { configureStore } from '@reduxjs/toolkit';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Category, type CheckoutResponseDTO, type Product } from '@examen-ecommerce/shared';
+import {
+  Category,
+  type CheckoutPreviewResponseDTO,
+  type CheckoutResponseDTO,
+  type Product,
+} from '@examen-ecommerce/shared';
 import { api } from '../../../../shared/api/axiosClient';
 import { cartReducer, addToCart } from '../../../cart/cartSlice';
 import { checkoutReducer } from '../../checkoutSlice';
@@ -37,6 +42,13 @@ const confirmation: CheckoutResponseDTO = {
   items: [{ product: laptop, quantity: 2 }],
 };
 
+const preview: CheckoutPreviewResponseDTO = {
+  originalSubtotal: confirmation.originalSubtotal,
+  discountBreakdown: confirmation.discountBreakdown,
+  finalTotal: confirmation.finalTotal,
+  items: confirmation.items,
+};
+
 function createStore() {
   const store = configureStore({ reducer: { cart: cartReducer, checkout: checkoutReducer } });
   store.dispatch(addToCart({ product: laptop, quantity: 2 }));
@@ -64,13 +76,72 @@ describe('CheckoutPanel', () => {
     mockedPost.mockReset();
   });
 
-  it('stores the coupon code when Aplicar Cupón is clicked', () => {
+  it('stores the coupon code when Aplicar Cupón is clicked', async () => {
+    mockedPost.mockResolvedValue({ data: preview } as never);
     renderPanel();
 
     fireEvent.change(screen.getByLabelText('Cupón promocional'), { target: { value: '  WELCOME2026  ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar Cupón' }));
 
     expect(screen.getByTestId('applied-coupon')).toHaveTextContent('WELCOME2026');
+  });
+
+  it('shows the discount breakdown preview in real time when the coupon is applied', async () => {
+    mockedPost.mockResolvedValue({ data: preview } as never);
+    renderPanel();
+
+    fireEvent.change(screen.getByLabelText('Cupón promocional'), { target: { value: 'WELCOME2026' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar Cupón' }));
+
+    const breakdown = await screen.findByTestId('checkout-breakdown');
+    const rows = within(breakdown);
+
+    expect(screen.getByText('Vista previa del descuento')).toBeInTheDocument();
+    expect(rows.getByText('$3000.00')).toBeInTheDocument();
+    expect(rows.getByText('-$300.00')).toBeInTheDocument();
+    expect(rows.getByText('-$384.75')).toBeInTheDocument();
+    expect(rows.getByText('$2180.25')).toBeInTheDocument();
+    expect(screen.queryByText('Finalizar Compra')).toBeInTheDocument();
+    expect(mockedPost).toHaveBeenCalledWith('/checkout/preview', {
+      cartItems: [{ productId: laptop.id, quantity: 2 }],
+      couponCode: 'WELCOME2026',
+    });
+    expect(mockedPost).not.toHaveBeenCalledWith('/checkout', expect.anything());
+  });
+
+  it('recomputes the preview breakdown when the cart quantity changes', async () => {
+    mockedPost.mockResolvedValue({ data: preview } as never);
+    const store = renderPanel();
+
+    fireEvent.change(screen.getByLabelText('Cupón promocional'), { target: { value: 'WELCOME2026' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar Cupón' }));
+    await screen.findByTestId('checkout-breakdown');
+
+    store.dispatch(addToCart({ product: laptop, quantity: 1 }));
+
+    await waitFor(() => {
+      expect(mockedPost).toHaveBeenCalledWith('/checkout/preview', {
+        cartItems: [{ productId: laptop.id, quantity: 3 }],
+        couponCode: 'WELCOME2026',
+      });
+    });
+  });
+
+  it('shows the invalid coupon error in real time from the preview', async () => {
+    mockedPost.mockRejectedValue({
+      isAxiosError: true,
+      message: 'Request failed with status code 400',
+      response: { data: { error: 'Invalid coupon code "WELCOME2025".' } },
+    });
+    renderPanel();
+
+    fireEvent.change(screen.getByLabelText('Cupón promocional'), { target: { value: 'WELCOME2025' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar Cupón' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('checkout-error')).toHaveTextContent('Invalid coupon code "WELCOME2025".');
+    });
+    expect(screen.queryByTestId('checkout-breakdown')).not.toBeInTheDocument();
   });
 
   it('keeps the checkout button disabled while the cart is empty', () => {
@@ -150,6 +221,47 @@ describe('CheckoutPanel', () => {
       expect(screen.getByTestId('checkout-error')).toHaveTextContent(
         'Insufficient stock for product "product-laptop-pro".',
       );
+    });
+  });
+
+  it('submits the current coupon in the input when it changes after applying another one', async () => {
+    mockedPost.mockResolvedValue({ data: confirmation } as never);
+    renderPanel();
+
+    const couponInput = screen.getByLabelText('Cupón promocional');
+    fireEvent.change(couponInput, { target: { value: 'WELCOME2026' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar Cupón' }));
+    expect(screen.getByTestId('applied-coupon')).toHaveTextContent('WELCOME2026');
+
+    fireEvent.change(couponInput, { target: { value: 'WELCOME2025' } });
+
+    expect(screen.queryByTestId('applied-coupon')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finalizar Compra' }));
+
+    await screen.findByTestId('checkout-breakdown');
+    expect(mockedPost).toHaveBeenCalledWith('/checkout', {
+      cartItems: [{ productId: laptop.id, quantity: 2 }],
+      couponCode: 'WELCOME2025',
+    });
+  });
+
+  it('shows the invalid coupon error when checking out with a changed coupon', async () => {
+    mockedPost.mockRejectedValue({
+      isAxiosError: true,
+      message: 'Request failed with status code 400',
+      response: { data: { error: 'Invalid coupon code "WELCOME2025".' } },
+    });
+    renderPanel();
+
+    const couponInput = screen.getByLabelText('Cupón promocional');
+    fireEvent.change(couponInput, { target: { value: 'WELCOME2026' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar Cupón' }));
+    fireEvent.change(couponInput, { target: { value: 'WELCOME2025' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Finalizar Compra' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('checkout-error')).toHaveTextContent('Invalid coupon code "WELCOME2025".');
     });
   });
 });

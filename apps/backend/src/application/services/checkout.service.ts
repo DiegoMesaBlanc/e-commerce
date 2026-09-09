@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { OrderStatus, type CartItem, type CheckoutRequestDTO, type CheckoutResponseDTO, type Product } from '@examen-ecommerce/shared';
+import {
+  OrderStatus,
+  type CartItem,
+  type CheckoutPreviewResponseDTO,
+  type CheckoutRequestDTO,
+  type CheckoutResponseDTO,
+  type Product,
+} from '@examen-ecommerce/shared';
 import type { DiscountEngine } from '../../domain/services/DiscountEngine';
 import { DiscountEngineFactory } from '../../domain/factory/DiscountEngineFactory';
 import { config } from '../../config';
@@ -21,6 +28,50 @@ export class CheckoutService {
   ) {}
 
   async execute(dto: CheckoutRequestDTO): Promise<CheckoutResponseDTO> {
+    const { cartItems, couponCode } = await this.buildCart(dto);
+
+    const calculation = this.discountEngine.execute(cartItems, couponCode);
+
+    for (const item of cartItems) {
+      await this.productRepository.updateStock(item.product.id, item.quantity);
+    }
+
+    const order: Order = {
+      orderId: randomUUID(),
+      couponCode,
+      items: cartItems,
+      originalSubtotal: calculation.originalSubtotal,
+      discountBreakdown: calculation.discountBreakdown,
+      finalTotal: calculation.finalTotal,
+      status: OrderStatus.COMPLETED,
+      createdAt: new Date(),
+    };
+    await this.orderRepository.save(order);
+
+    return {
+      orderId: order.orderId,
+      originalSubtotal: order.originalSubtotal,
+      discountBreakdown: order.discountBreakdown,
+      finalTotal: order.finalTotal,
+      items: order.items,
+    };
+  }
+
+  async preview(dto: CheckoutRequestDTO): Promise<CheckoutPreviewResponseDTO> {
+    const { cartItems, couponCode } = await this.buildCart(dto);
+    const calculation = this.discountEngine.execute(cartItems, couponCode);
+
+    return {
+      originalSubtotal: calculation.originalSubtotal,
+      discountBreakdown: calculation.discountBreakdown,
+      finalTotal: calculation.finalTotal,
+      items: cartItems,
+    };
+  }
+
+  private async buildCart(
+    dto: CheckoutRequestDTO,
+  ): Promise<{ cartItems: CartItem[]; couponCode: string | undefined }> {
     if (!dto.cartItems || dto.cartItems.length === 0) {
       throw new EmptyCartError();
     }
@@ -46,31 +97,7 @@ export class CheckoutService {
       cartItems.push({ product, quantity: requested.quantity });
     }
 
-    const calculation = this.discountEngine.execute(cartItems, dto.couponCode);
-
-    for (const item of cartItems) {
-      await this.productRepository.updateStock(item.product.id, item.quantity);
-    }
-
-    const order: Order = {
-      orderId: randomUUID(),
-      couponCode: dto.couponCode,
-      items: cartItems,
-      originalSubtotal: calculation.originalSubtotal,
-      discountBreakdown: calculation.discountBreakdown,
-      finalTotal: calculation.finalTotal,
-      status: OrderStatus.COMPLETED,
-      createdAt: new Date(),
-    };
-    await this.orderRepository.save(order);
-
-    return {
-      orderId: order.orderId,
-      originalSubtotal: order.originalSubtotal,
-      discountBreakdown: order.discountBreakdown,
-      finalTotal: order.finalTotal,
-      items: order.items,
-    };
+    return { cartItems, couponCode: dto.couponCode };
   }
 
   private aggregateQuantities(items: CheckoutRequestDTO['cartItems']): RequestedItem[] {
