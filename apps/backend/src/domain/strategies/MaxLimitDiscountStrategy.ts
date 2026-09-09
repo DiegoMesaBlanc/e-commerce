@@ -6,13 +6,13 @@ import {
   DiscountStrategyName,
 } from './IDiscountStrategy';
 
-export const MAX_DISCOUNT_RATE = 0.35;
-
 export class MaxLimitDiscountStrategy implements IDiscountStrategy {
   readonly name = DiscountStrategyName.MAX_LIMIT;
 
+  constructor(private readonly maxRate: number) {}
+
   apply(context: DiscountContext): DiscountResult {
-    const maxAllowedDiscount = roundMoney(context.originalSubtotal * MAX_DISCOUNT_RATE);
+    const maxAllowedDiscount = roundMoney(context.originalSubtotal * this.maxRate);
     const cumulativeSavings = roundMoney(context.originalSubtotal - context.runningSubtotal);
 
     if (cumulativeSavings <= maxAllowedDiscount) {

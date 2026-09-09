@@ -4,20 +4,19 @@ import {
   type DiscountResult,
   type IDiscountStrategy,
   DiscountStrategyName,
-  WELCOME2026_COUPON,
 } from './IDiscountStrategy';
-
-export const COUPON_DISCOUNT_RATE = 0.15;
 
 export class CouponDiscountStrategy implements IDiscountStrategy {
   readonly name = DiscountStrategyName.COUPON;
 
+  constructor(private readonly rate: number, private readonly couponCode: string) {}
+
   apply(context: DiscountContext): DiscountResult {
-    if (context.couponCode !== WELCOME2026_COUPON) {
+    if (context.couponCode !== this.couponCode) {
       return { discountAmount: 0, applied: false, limitReached: false };
     }
 
-    const discountAmount = roundMoney(context.runningSubtotal * COUPON_DISCOUNT_RATE);
+    const discountAmount = roundMoney(context.runningSubtotal * this.rate);
 
     return {
       discountAmount,

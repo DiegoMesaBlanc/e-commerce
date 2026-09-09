@@ -1,7 +1,5 @@
 import type { CartItem } from '@examen-ecommerce/shared';
 
-export const WELCOME2026_COUPON = 'WELCOME2026';
-
 export enum DiscountStrategyName {
   CATEGORY = 'CATEGORY',
   VOLUME = 'VOLUME',

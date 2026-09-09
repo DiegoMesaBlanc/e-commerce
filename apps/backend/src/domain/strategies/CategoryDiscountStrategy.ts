@@ -7,17 +7,17 @@ import {
   DiscountStrategyName,
 } from './IDiscountStrategy';
 
-export const CATEGORY_DISCOUNT_RATE = 0.1;
-
 export class CategoryDiscountStrategy implements IDiscountStrategy {
   readonly name = DiscountStrategyName.CATEGORY;
+
+  constructor(private readonly rate: number) {}
 
   apply(context: DiscountContext): DiscountResult {
     const technologySubtotal = context.cartItems
       .filter((item: CartItem) => item.product.category === Category.TECHNOLOGY)
       .reduce((sum: number, item: CartItem) => sum + item.product.price * item.quantity, 0);
 
-    const discountAmount = roundMoney(technologySubtotal * CATEGORY_DISCOUNT_RATE);
+    const discountAmount = roundMoney(technologySubtotal * this.rate);
 
     return {
       discountAmount,
