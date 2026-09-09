@@ -33,9 +33,9 @@ export class ProductNotFoundError extends AppError {
 }
 
 export class InsufficientStockError extends AppError {
-  constructor(productId: string, availableStock: number, requestedQuantity: number) {
+  constructor(productName: string, availableStock: number, requestedQuantity: number) {
     super(
-      `Insufficient stock for product "${productId}": requested ${requestedQuantity}, available ${availableStock}.`,
+      `Insufficient stock for product "${productName}": requested ${requestedQuantity}, available ${availableStock}.`,
       400,
     );
   }

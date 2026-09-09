@@ -92,7 +92,7 @@ export class CheckoutService {
         throw new ProductNotFoundError(requested.productId);
       }
       if (product.stock < requested.quantity) {
-        throw new InsufficientStockError(requested.productId, product.stock, requested.quantity);
+        throw new InsufficientStockError(product.name, product.stock, requested.quantity);
       }
       cartItems.push({ product, quantity: requested.quantity });
     }
